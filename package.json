@@ -1,0 +1,68 @@
+{
+  "name": "vscode-arm64-assembly",
+  "displayName": "ARM64 Assembly (GNU AS)",
+  "description": "ARM64/AArch64 GNU Assembler support: syntax highlighting, outline, go-to-definition, and register hover docs for all AArch64 registers",
+  "version": "0.1.0",
+  "publisher": "arm64asm",
+  "license": "MIT",
+  "icon": "images/icon.png",
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "arm64",
+    "aarch64",
+    "assembly",
+    "gnu as",
+    "gas",
+    "asm",
+    "bare-metal",
+    "syscall"
+  ],
+  "engines": {
+    "vscode": "^1.115.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YOUR_GITHUB/vscode-arm64-assembly.git"
+  },
+  "bugs": {
+    "url": "https://github.com/YOUR_GITHUB/vscode-arm64-assembly/issues"
+  },
+  "main": "./out/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "languages": [
+      {
+        "id": "arm64-asm",
+        "aliases": [
+          "ARM64 Assembly",
+          "AArch64 Assembly",
+          "arm64-asm"
+        ],
+        "extensions": [
+          ".s",
+          ".S"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "arm64-asm",
+        "scopeName": "source.arm64",
+        "path": "./syntaxes/arm64-asm.tmLanguage.json"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.39",
+    "@types/vscode": "^1.115.0",
+    "typescript": "^5.9.3"
+  }
+}

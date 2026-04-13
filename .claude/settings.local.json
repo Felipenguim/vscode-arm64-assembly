@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(code --version)",
+      "Bash(npm list:*)",
+      "Bash(npx vsce:*)",
+      "Bash(tsc --version)",
+      "Read(//c/Users/felip/.vscode/extensions//**)",
+      "Bash(npm install:*)",
+      "Bash(npx @vscode/vsce package --allow-missing-repository)"
+    ]
+  }
+}
