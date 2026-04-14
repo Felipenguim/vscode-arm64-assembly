@@ -1,17 +1,20 @@
 import * as vscode from 'vscode';
 import { REGISTER_DOCS } from '../data/registers';
 import { INSTRUCTION_DOCS } from '../data/instructions';
+import { resolveMacro, MacroDefinition } from './macroResolver';
 
 /**
- * Provides hover documentation for AArch64 registers, instructions, and
- * numeric literals.
+ * Provides hover documentation for AArch64 registers, instructions, macros,
+ * and numeric literals.
  *
  * Priority order when the cursor is on a token:
- *   1. Register  — e.g. `x0`, `v3.8b`, `nzcv`
- *   2. Instruction / mnemonic — e.g. `mov`, `bl`, `b.eq`
- *   3. Numeric literal — e.g. `#0xFF`, `0b1010`, `#-64`
+ *   1. Register      — e.g. `x0`, `v3.8b`, `nzcv`
+ *   2. Instruction   — e.g. `mov`, `bl`, `b.eq`
+ *   3. Macro         — identifier matching a `.macro` definition (local or included)
+ *   4. Numeric literal — e.g. `#0xFF`, `0b1010`, `#-64`
  *
- * All lookups are case-insensitive.
+ * Register and instruction lookups are case-insensitive.
+ * Macro name matching is case-sensitive (GAS convention).
  */
 export class Arm64HoverProvider implements vscode.HoverProvider {
   /**
@@ -32,22 +35,22 @@ export class Arm64HoverProvider implements vscode.HoverProvider {
   private static readonly NUM_RE =
     /#?-?(?:0[xX][0-9a-fA-F]+|0[bB][01]+|0[0-7]+(?![0-9x])|[0-9]+)/;
 
-  provideHover(
+  async provideHover(
     document: vscode.TextDocument,
     position: vscode.Position,
     _token: vscode.CancellationToken
-  ): vscode.Hover | undefined {
-    // ── 1. Try identifier (register / instruction) ────────────────────────
+  ): Promise<vscode.Hover | undefined> {
+    // ── 1. Try identifier (register / instruction / macro) ────────────────
     const identRange = document.getWordRangeAtPosition(
       position,
       Arm64HoverProvider.IDENT_RE
     );
 
     if (identRange) {
-      const word = document.getText(identRange).toLowerCase();
+      const rawWord = document.getText(identRange);
+      const word    = rawWord.toLowerCase();
 
-      // Register takes priority (could be e.g. `sp` which is also a substring
-      // of instruction names in theory — keep the explicit priority).
+      // Register takes priority
       const regDoc = REGISTER_DOCS.get(word);
       if (regDoc) {
         return this.buildRegisterHover(word, regDoc, identRange);
@@ -56,6 +59,12 @@ export class Arm64HoverProvider implements vscode.HoverProvider {
       const instrDoc = INSTRUCTION_DOCS.get(word);
       if (instrDoc) {
         return this.buildInstructionHover(word, instrDoc, identRange);
+      }
+
+      // Macro — case-sensitive name match; searches current file + .include files
+      const macro = await resolveMacro(document, rawWord);
+      if (macro) {
+        return this.buildMacroHover(rawWord, macro, identRange);
       }
     }
 
@@ -74,6 +83,58 @@ export class Arm64HoverProvider implements vscode.HoverProvider {
   }
 
   // ── Hover builders ────────────────────────────────────────────────────────
+
+  private buildMacroHover(
+    name: string,
+    macro: MacroDefinition,
+    range: vscode.Range
+  ): vscode.Hover {
+    const md = new vscode.MarkdownString();
+    md.isTrusted = true;
+
+    // ── Signature header (mirrors TypeScript's "(method) name(params): type") ──
+    const sigLine = macro.signature ?? name;
+    md.appendCodeblock(`(macro) ${sigLine}`, 'c');
+
+    // ── Description ──────────────────────────────────────────────────────────
+    const descLines = macro.description.filter(l => l !== '');
+    if (descLines.length) {
+      md.appendMarkdown('\n' + descLines.join('  \n') + '\n');
+    }
+
+    // ── @param entries ────────────────────────────────────────────────────────
+    if (macro.params.length) {
+      md.appendMarkdown('\n');
+      for (const p of macro.params) {
+        md.appendMarkdown(
+          `*@param* \`${p.name}\` \`${p.register}\` \u2014 ${p.description}  \n`
+        );
+      }
+    }
+
+    // ── @return entry ─────────────────────────────────────────────────────────
+    if (macro.ret) {
+      md.appendMarkdown('\n');
+      md.appendMarkdown(
+        `*@return* \`${macro.ret.register}\` \u2014 ${macro.ret.description}\n`
+      );
+    }
+
+    // ── Body (collapsed under a details/summary when no structured docs) ──────
+    const hasStructuredDocs =
+      macro.signature !== undefined ||
+      macro.description.length > 0  ||
+      macro.params.length > 0        ||
+      macro.ret !== undefined;
+
+    md.appendMarkdown('\n---\n\n');
+    if (hasStructuredDocs) {
+      md.appendMarkdown('**Implementation**\n\n');
+    }
+    md.appendCodeblock(macro.body.join('\n'), 'arm');
+
+    return new vscode.Hover(md, range);
+  }
 
   private buildRegisterHover(
     word: string,
