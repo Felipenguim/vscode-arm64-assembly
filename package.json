@@ -32,6 +32,39 @@
   "main": "./out/extension.js",
   "activationEvents": [],
   "contributes": {
+    "configurationDefaults": {
+      "editor.tokenColorCustomizations": {
+        "textMateRules": [
+          {
+            "comment": "ARM64 instructions — red",
+            "scope": [
+              "keyword.mnemonic.branch.arm64",
+              "keyword.mnemonic.memory.arm64",
+              "keyword.mnemonic.arithmetic.arm64",
+              "keyword.mnemonic.logical.arm64",
+              "keyword.mnemonic.simd.arm64",
+              "keyword.mnemonic.system.arm64"
+            ],
+            "settings": { "foreground": "#cd6f6f" }
+          },
+          {
+            "comment": "ARM64 function / macro calls — yellow",
+            "scope": "entity.name.function.call.arm64",
+            "settings": { "foreground": "#dcdcaa" }
+          },
+          {
+            "comment": "ARM64 stack pointer (SP / WSP) — cyan-blue, distinct from other GPRs",
+            "scope": "variable.language.register.stack-pointer.arm64",
+            "settings": { "foreground": "#4fc1ff" }
+          },
+          {
+            "comment": "ARM64 entry labels (START / END) — magenta",
+            "scope": "entity.name.label.entry.arm64",
+            "settings": { "foreground": "#c586c0" }
+          }
+        ]
+      }
+    },
     "languages": [
       {
         "id": "arm64-asm",

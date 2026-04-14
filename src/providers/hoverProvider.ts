@@ -1,43 +1,155 @@
 import * as vscode from 'vscode';
 import { REGISTER_DOCS } from '../data/registers';
+import { INSTRUCTION_DOCS } from '../data/instructions';
 
 /**
- * Provides hover documentation for AArch64 registers.
+ * Provides hover documentation for AArch64 registers, instructions, and
+ * numeric literals.
  *
- * When the user hovers over a register name (e.g. `x0`, `v3`, `nzcv`), a
- * Markdown tooltip is shown with the register's ABI role and description.
+ * Priority order when the cursor is on a token:
+ *   1. Register  — e.g. `x0`, `v3.8b`, `nzcv`
+ *   2. Instruction / mnemonic — e.g. `mov`, `bl`, `b.eq`
+ *   3. Numeric literal — e.g. `#0xFF`, `0b1010`, `#-64`
  *
- * Lookup is case-insensitive: `X0`, `x0`, and `X0` all resolve to the same entry.
- * System registers accessed via `MRS x0, NZCV` are also handled correctly.
+ * All lookups are case-insensitive.
  */
 export class Arm64HoverProvider implements vscode.HoverProvider {
+  /**
+   * Regex for identifiers: captures register and instruction names, including
+   * dots for vector arrangements (`v3.8b`) and conditional suffixes (`b.eq`).
+   */
+  private static readonly IDENT_RE = /[a-zA-Z_][a-zA-Z0-9_.]*/;
+
+  /**
+   * Regex for numeric literals (with optional `#` prefix and leading minus).
+   *
+   * Matched in priority order:
+   *   hex    0x / 0X
+   *   binary 0b / 0B
+   *   octal  leading-zero + octal digits
+   *   decimal
+   */
+  private static readonly NUM_RE =
+    /#?-?(?:0[xX][0-9a-fA-F]+|0[bB][01]+|0[0-7]+(?![0-9x])|[0-9]+)/;
+
   provideHover(
     document: vscode.TextDocument,
     position: vscode.Position,
     _token: vscode.CancellationToken
   ): vscode.Hover | undefined {
-    // Use a custom word range that captures register names including dots
-    // in vector arrangement suffixes (e.g. `v3.8b`).
-    const wordRange = document.getWordRangeAtPosition(
+    // ── 1. Try identifier (register / instruction) ────────────────────────
+    const identRange = document.getWordRangeAtPosition(
       position,
-      /[a-zA-Z_][a-zA-Z0-9_.]*/
+      Arm64HoverProvider.IDENT_RE
     );
-    if (!wordRange) {
-      return undefined;
+
+    if (identRange) {
+      const word = document.getText(identRange).toLowerCase();
+
+      // Register takes priority (could be e.g. `sp` which is also a substring
+      // of instruction names in theory — keep the explicit priority).
+      const regDoc = REGISTER_DOCS.get(word);
+      if (regDoc) {
+        return this.buildRegisterHover(word, regDoc, identRange);
+      }
+
+      const instrDoc = INSTRUCTION_DOCS.get(word);
+      if (instrDoc) {
+        return this.buildInstructionHover(word, instrDoc, identRange);
+      }
     }
 
-    const word = document.getText(wordRange).toLowerCase();
-    const description = REGISTER_DOCS.get(word);
+    // ── 2. Try numeric literal ────────────────────────────────────────────
+    const numRange = document.getWordRangeAtPosition(
+      position,
+      Arm64HoverProvider.NUM_RE
+    );
 
-    if (!description) {
-      return undefined;
+    if (numRange) {
+      const raw = document.getText(numRange);
+      return this.buildNumericHover(raw, numRange);
     }
 
+    return undefined;
+  }
+
+  // ── Hover builders ────────────────────────────────────────────────────────
+
+  private buildRegisterHover(
+    word: string,
+    description: string,
+    range: vscode.Range
+  ): vscode.Hover {
     const contents = new vscode.MarkdownString();
     contents.isTrusted = true;
     contents.appendMarkdown(`**\`${word.toUpperCase()}\`** — AArch64 Register\n\n`);
     contents.appendMarkdown(description);
+    return new vscode.Hover(contents, range);
+  }
 
-    return new vscode.Hover(contents, wordRange);
+  private buildInstructionHover(
+    word: string,
+    description: string,
+    range: vscode.Range
+  ): vscode.Hover {
+    const contents = new vscode.MarkdownString();
+    contents.isTrusted = true;
+    contents.appendMarkdown(description);
+    return new vscode.Hover(contents, range);
+  }
+
+  private buildNumericHover(raw: string, range: vscode.Range): vscode.Hover {
+    // Strip optional `#` prefix and collect sign.
+    const withoutHash = raw.startsWith('#') ? raw.slice(1) : raw;
+    const negative    = withoutHash.startsWith('-');
+    const digits      = negative ? withoutHash.slice(1) : withoutHash;
+
+    let value: bigint;
+    let base: string;
+
+    if (/^0[xX]/.test(digits)) {
+      base  = 'Hexadecimal';
+      value = BigInt('0x' + digits.slice(2));
+    } else if (/^0[bB]/.test(digits)) {
+      base  = 'Binary';
+      value = BigInt('0b' + digits.slice(2));
+    } else if (/^0[0-7]/.test(digits) && digits.length > 1) {
+      base  = 'Octal';
+      value = this.parseOctal(digits.slice(1));   // strip leading '0'
+    } else {
+      base  = 'Decimal';
+      value = BigInt(digits);
+    }
+
+    if (negative) { value = -value; }
+
+    // Represent in all four bases.
+    const isNeg = value < 0n;
+    const abs   = isNeg ? -value : value;
+
+    const dec = value.toString(10);
+    const hex = (isNeg ? '-' : '') + '0x' + abs.toString(16).toUpperCase();
+    const bin = (isNeg ? '-' : '') + '0b' + abs.toString(2);
+    const oct = (isNeg ? '-' : '') + '0'  + abs.toString(8);
+
+    const contents = new vscode.MarkdownString();
+    contents.isTrusted = true;
+    contents.appendMarkdown(`**\`${raw}\`** — ${base} literal\n\n`);
+    contents.appendMarkdown(`| Base | Value |\n| --- | --- |\n`);
+    contents.appendMarkdown(`| Decimal | \`${dec}\` |\n`);
+    contents.appendMarkdown(`| Hexadecimal | \`${hex}\` |\n`);
+    contents.appendMarkdown(`| Binary | \`${bin}\` |\n`);
+    contents.appendMarkdown(`| Octal | \`${oct}\` |\n`);
+
+    return new vscode.Hover(contents, range);
+  }
+
+  /** Parse octal digits string (without the leading `0`) using BigInt. */
+  private parseOctal(digits: string): bigint {
+    let result = 0n;
+    for (const ch of digits) {
+      result = result * 8n + BigInt(parseInt(ch, 10));
+    }
+    return result;
   }
 }

@@ -6,14 +6,18 @@
   "patterns": [
     { "include": "#comments" },
     { "include": "#strings" },
+    { "include": "#labels_entry" },
     { "include": "#labels" },
     { "include": "#directives" },
+    { "include": "#function_calls" },
     { "include": "#instructions_branch" },
     { "include": "#instructions_memory" },
     { "include": "#instructions_arithmetic" },
     { "include": "#instructions_logical" },
     { "include": "#instructions_simd" },
     { "include": "#instructions_system" },
+    { "include": "#macro_calls" },
+    { "include": "#registers_sp" },
     { "include": "#registers_special" },
     { "include": "#registers_gpr64" },
     { "include": "#registers_gpr32" },
@@ -24,6 +28,7 @@
     { "include": "#macro_params" }
   ],
   "repository": {
+
     "comments": {
       "patterns": [
         {
@@ -39,7 +44,7 @@
           "begin": "/\\*",
           "end": "\\*/",
           "beginCaptures": { "0": { "name": "punctuation.definition.comment.begin.arm64" } },
-          "endCaptures": { "0": { "name": "punctuation.definition.comment.end.arm64" } }
+          "endCaptures":   { "0": { "name": "punctuation.definition.comment.end.arm64"   } }
         }
       ]
     },
@@ -53,6 +58,16 @@
           "patterns": [
             { "name": "constant.character.escape.arm64", "match": "\\\\." }
           ]
+        }
+      ]
+    },
+
+    "labels_entry": {
+      "comment": "Special entry-point labels (START / END). These always appear in user code and should be visually distinct from both regular labels and function calls.",
+      "patterns": [
+        {
+          "name": "entity.name.label.entry.arm64",
+          "match": "^\\s*(START|END)\\s*:"
         }
       ]
     },
@@ -75,11 +90,24 @@
       ]
     },
 
+    "function_calls": {
+      "comment": "BL <label> — branch-and-link to a named symbol is a function call. The mnemonic keeps its instruction scope; the target label gets the function-call scope (yellow).",
+      "patterns": [
+        {
+          "match": "(?i)\\b(bl)\\b\\s+([a-zA-Z_.][a-zA-Z0-9_.]*)",
+          "captures": {
+            "1": { "name": "keyword.mnemonic.branch.arm64" },
+            "2": { "name": "entity.name.function.call.arm64" }
+          }
+        }
+      ]
+    },
+
     "instructions_branch": {
       "patterns": [
         {
           "name": "keyword.mnemonic.branch.arm64",
-          "match": "(?i)\\b(b\\.(eq|ne|cs|hs|cc|lo|mi|pl|vs|vc|hi|ls|ge|lt|gt|le|al|nv)|blraa|blrab|blraaz|blrabz|braa|brab|braaz|brabz|blr|bl|br|cbz|cbnz|tbz|tbnz|retaa|retab|reta|ret|b)\\b"
+          "match": "(?i)\\b(b\\.(eq|ne|cs|hs|cc|lo|mi|pl|vs|vc|hi|ls|ge|lt|gt|le|al|nv)|blraa|blrab|blraaz|blrabz|braa|brab|braaz|brabz|blr|br|cbz|cbnz|tbz|tbnz|retaa|retab|reta|ret|b)\\b"
         }
       ]
     },
@@ -129,11 +157,34 @@
       ]
     },
 
+    "macro_calls": {
+      "comment": "Heuristic: an identifier starting with '_' in instruction position (indented line) is likely a GAS macro invocation. Coloured the same as function calls (yellow).",
+      "patterns": [
+        {
+          "match": "^([ \\t]+)(_[a-zA-Z][a-zA-Z0-9_]*)",
+          "captures": {
+            "2": { "name": "entity.name.function.call.arm64" }
+          }
+        }
+      ]
+    },
+
+    "registers_sp": {
+      "comment": "Stack pointer registers (SP / WSP) — distinct colour from other GPRs.",
+      "patterns": [
+        {
+          "name": "variable.language.register.stack-pointer.arm64",
+          "match": "(?i)\\b(wsp|sp)\\b"
+        }
+      ]
+    },
+
     "registers_special": {
+      "comment": "Special aliased registers (XZR, WZR, LR, FP, PC). SP and WSP are handled by registers_sp.",
       "patterns": [
         {
           "name": "variable.language.register.special.arm64",
-          "match": "(?i)\\b(xzr|wzr|wsp|sp|lr|fp|pc)\\b"
+          "match": "(?i)\\b(xzr|wzr|lr|fp|pc)\\b"
         }
       ]
     },
