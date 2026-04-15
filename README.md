@@ -1,7 +1,7 @@
 # ARM64 Assembly (GNU AS) — VS Code Extension
 
 > The most complete ARM64/AArch64 editor support available — built for programmers
-> who write **real** assembly: no libc, no runtime, just the hardware and Linux syscalls.
+> who write just assembly: no libc, no runtime, just the hardware and Linux syscalls.
 
 ![Extension in action](images/example.png)
 
@@ -114,9 +114,18 @@ This extension is built for ARM64 programmers who like to have some fun coding o
 
 ---
 
+## Learning Resources
+
+For a deep dive ARM64/x86_64 assembly
+programming really from basics to hard stuff — check out:
+
+- [SCHIZONE](https://github.com/xmdi/SCHIZONE) — hands-on assembly lessons
+
+---
+
 ## Contributing
 
-Issues and pull requests are welcome on [GitHub](https://github.com/YOUR_GITHUB/vscode-arm64-assembly).
+Issues and pull requests are welcome on [GitHub](https://github.com/Felipenguim/vscode-arm64-assembly).
 
 If you find a missing instruction, register, or directive, please open an issue —
 ARM64 has a large ISA and contributions are very much appreciated.
