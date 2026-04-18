@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { resolveMacro } from './macroResolver';
+import { resolveFunction } from './functionResolver';
 
 /**
  * Matches a label definition at the start of a line.
@@ -50,6 +51,15 @@ export class Arm64DefinitionProvider implements vscode.DefinitionProvider {
       return new vscode.Location(
         macro.uri,
         new vscode.Range(macro.line, 0, macro.line, 0)
+      );
+    }
+
+    // ── 3. Function lookup (current file + .include files) ────────────────
+    const func = await resolveFunction(document, word);
+    if (func) {
+      return new vscode.Location(
+        func.uri,
+        new vscode.Range(func.line, 0, func.line, 0)
       );
     }
 

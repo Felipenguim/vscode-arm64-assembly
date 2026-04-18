@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { REGISTER_DOCS } from '../data/registers';
 import { INSTRUCTION_DOCS } from '../data/instructions';
 import { resolveMacro, MacroDefinition } from './macroResolver';
+import { resolveFunction, FunctionDefinition } from './functionResolver';
 
 /**
  * Provides hover documentation for AArch64 registers, instructions, macros,
@@ -65,6 +66,12 @@ export class Arm64HoverProvider implements vscode.HoverProvider {
       const macro = await resolveMacro(document, rawWord);
       if (macro) {
         return this.buildMacroHover(rawWord, macro, identRange);
+      }
+
+      // Function — only for names that do NOT start with `_` (those are macros)
+      const func = await resolveFunction(document, rawWord);
+      if (func) {
+        return this.buildFunctionHover(rawWord, func, identRange);
       }
     }
 
@@ -132,6 +139,53 @@ export class Arm64HoverProvider implements vscode.HoverProvider {
       md.appendMarkdown('**Implementation**\n\n');
     }
     md.appendCodeblock(macro.body.join('\n'), 'arm');
+
+    return new vscode.Hover(md, range);
+  }
+
+  private buildFunctionHover(
+    name: string,
+    func: FunctionDefinition,
+    range: vscode.Range
+  ): vscode.Hover {
+    const md = new vscode.MarkdownString();
+    md.isTrusted = true;
+
+    const sigLine = func.signature ?? name;
+    md.appendCodeblock(`(function) ${sigLine}`, 'c');
+
+    const descLines = func.description.filter(l => l !== '');
+    if (descLines.length) {
+      md.appendMarkdown('\n' + descLines.join('  \n') + '\n');
+    }
+
+    if (func.params.length) {
+      md.appendMarkdown('\n');
+      for (const p of func.params) {
+        md.appendMarkdown(
+          `*@param* \`${p.name}\` \`${p.register}\` \u2014 ${p.description}  \n`
+        );
+      }
+    }
+
+    if (func.ret) {
+      md.appendMarkdown('\n');
+      md.appendMarkdown(
+        `*@return* \`${func.ret.register}\` \u2014 ${func.ret.description}\n`
+      );
+    }
+
+    const hasStructuredDocs =
+      func.signature !== undefined ||
+      func.description.length > 0  ||
+      func.params.length > 0        ||
+      func.ret !== undefined;
+
+    md.appendMarkdown('\n---\n\n');
+    if (hasStructuredDocs) {
+      md.appendMarkdown('**Implementation**\n\n');
+    }
+    md.appendCodeblock(func.body.join('\n'), 'arm');
 
     return new vscode.Hover(md, range);
   }
