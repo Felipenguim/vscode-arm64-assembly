@@ -78,11 +78,48 @@ Hover over any register to see its ABI role and calling convention.
 | `x8` | Indirect result / **Linux syscall number**. Caller-saved. |
 | `x29` | Frame pointer (FP). Callee-saved. |
 | `sp` | Stack pointer. Must be 16-byte aligned at public interfaces. |
-| `v3.8b` | 128-bit vector register. Arrangements: .8b .16b .4h .8h .2s .4s .1d .2d |
+| `v3` | 128-bit vector register. Arrangements: .8b .16b .4h .8h .2s .4s .1d .2d |
 | `vbar_el1` | Vector base address register EL1 — base of the EL1 exception vector table. |
 
 Covers all ~200 AArch64 registers: `x0–x30`, `w0–w30`, `v0–v31`, `q/d/s/h/b 0–31`,
 `sp`, `lr`, `fp`, `xzr`, `wzr`, and a comprehensive set of system registers.
+
+### SIMD Lane Hover Documentation
+
+Hover a vector operand that carries an arrangement or a lane index to see exactly
+how the 128 bits are divided — lane count, element width, and the bit range of
+every lane.
+
+```asm
+fadd v1.4s, v2.4s, v3.4s    // hover v1.4s → 4 lanes × 32 bits (int32 / float)
+                            //   ┌────────┬────────┬────────┬────────┐
+                            //   │   s[3] │   s[2] │   s[1] │   s[0] │
+                            //   │ 127:96 │  95:64 │  63:32 │   31:0 │
+                            //   └────────┴────────┴────────┴────────┘
+ins  v0.d[1], x0            // hover v0.d[1] → one 64-bit lane at bits 127:64
+movi v4.8b,  #0             // hover v4.8b  → lower 64 bits only; 127:64 zeroed
+```
+
+Every hover also lists the other arrangements of the same register, so switching
+between `.16b`, `.8h`, `.4s`, and `.2d` is one glance away. Out-of-range lane
+indices (`v0.s[9]`) are flagged instead of silently documented.
+
+### Instruction Hover Documentation
+
+Hover any mnemonic for its purpose, operand forms, and the caveats that bite —
+covering the general-purpose, branch, and system instructions plus **~120
+floating-point and SIMD/NEON** ones.
+
+```asm
+fcmp   d0, d1     // hover → sets NZCV, plus the FP condition-code table
+                  //         (which conditions are NaN-safe and which are not)
+movi   v0.16b, #0 // hover → immediate encoding rules; the idiom for zeroing
+fmla   v0.4s, v1.4s, v2.4s   // hover → warns that Vd is read-modify-write
+fcvtzs w0, s0     // hover → rounding mode, saturation, inverse (SCVTF)
+```
+
+Mnemonics that exist in both worlds (`add`, `orr`, `ldr`, `mov`, …) show the
+scalar documentation followed by the vector form.
 
 ### Go-to-Definition
 

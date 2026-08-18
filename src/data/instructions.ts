@@ -6,7 +6,13 @@
  *
  * All keys are lowercase. Conditional branch variants (b.eq, b.ne, …) are
  * stored individually so lookup works after normalising with toLowerCase().
+ *
+ * Floating-point and SIMD/NEON mnemonics live in `simdInstructions.ts` and are
+ * merged in at the end of `buildInstructionDocs()`, so this map stays the single
+ * lookup point for the HoverProvider.
  */
+
+import { SIMD_INSTRUCTION_DOCS } from './simdInstructions';
 
 function buildInstructionDocs(): Map<string, string> {
   const m = new Map<string, string>();
@@ -804,6 +810,16 @@ function buildInstructionDocs(): Map<string, string> {
     `\`\`\`asm\n` +
     `LDADD Xs, Xt, [Xn]  // Xt = old mem[Xn];  mem[Xn] += Xs\n` +
     `\`\`\``);
+
+  // ─── Floating-point / SIMD ────────────────────────────────────────────────
+  //
+  // Mnemonics that exist in both worlds (ADD, ORR, LDR, MOV, …) keep their
+  // scalar documentation and get the vector form appended below a rule.
+
+  for (const [mnem, simdDoc] of SIMD_INSTRUCTION_DOCS) {
+    const scalarDoc = m.get(mnem);
+    m.set(mnem, scalarDoc ? `${scalarDoc}\n\n---\n\n${simdDoc}` : simdDoc);
+  }
 
   return m;
 }

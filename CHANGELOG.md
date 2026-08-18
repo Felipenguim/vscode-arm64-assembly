@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0] — 2026-08-01
+
+### Added
+- Hover documentation for ~120 floating-point and SIMD/NEON instructions
+  (`src/data/simdInstructions.ts`): FP arithmetic, conversion and rounding
+  (`fadd`, `fcvtzs`, `frintm`, `scvtf`, …), comparison and select (`fcmp` — with
+  the full FP condition-code table — `fccmp`, `fcsel`, `cmeq`, `fcmgt`, …), data
+  movement (`movi`, `dup`, `ins`, `umov`, `ext`, `tbl`, `zip1`, …), integer SIMD
+  arithmetic, saturating and widening/narrowing forms, and the de-interleaving
+  loads/stores `ld1`–`ld4` / `st1`–`st4`
+- Vector-form documentation for mnemonics shared with the scalar set (`add`,
+  `mul`, `orr`, `mov`, `ldr`, `stp`, …); these hovers now show the scalar
+  description followed by the vector one
+- Hover for vector operands with an arrangement or lane index (`v1.4s`, `v0.2d`,
+  `v3.s[0]`): lane count, element width, an ASCII map of every lane's bit range,
+  and a table of the other arrangements available on the same register
+  (`src/data/vectorArrangements.ts`)
+- Syntax highlighting for lane-index operands (`v3.s[0]`), plus the missing
+  `fmla`, `fmls`, `mla`, `mls` mnemonics
+
+### Fixed
+- Vector operands with an arrangement (`v3.8b`, `v1.4s`) produced **no** register
+  hover and instead fell through to the numeric-literal hover, showing a decimal
+  conversion table for the digits. `Arm64HoverProvider.IDENT_RE` matched the whole
+  `v3.8b` string, which is not a key in `REGISTER_DOCS`; a dedicated vector regex
+  is now tried first
+
 ## [0.1.0] — 2026-04-13
 
 ### Added
