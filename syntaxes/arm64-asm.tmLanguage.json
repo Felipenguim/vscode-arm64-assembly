@@ -143,7 +143,7 @@
       "patterns": [
         {
           "name": "keyword.mnemonic.simd.arm64",
-          "match": "(?i)\\b(fmaxnmv|fminnmv|fmaxv|fminv|fmaxnm|fminnm|fmax|fmin|fmadd|fmsub|fnmadd|fnmsub|fmul|fnmul|fmulx|fdiv|fadd|fsub|fneg|fabs|fsqrt|frinta|frinti|frintm|frintn|frintp|frintz|frintx|frecpe|frecps|frecpx|frsqrte|frsqrts|fcmp|fcmpe|fccmp|fccmpe|fcsel|fcvt|fcvtas|fcvtau|fcvtms|fcvtmu|fcvtns|fcvtnu|fcvtps|fcvtpu|fcvtzs|fcvtzu|scvtf|ucvtf|fjcvtzs|fmov|fdup|dmb|dup|ins|ext|rev16|rev32|rev64|tbl|tbx|zip1|zip2|uzp1|uzp2|trn1|trn2|smov|umov|movi|mvni|bsl|bit|bif|pmul|pmull|pmull2|sqadd|sqsub|sqneg|sqabs|sqshl|sqrshl|sqshlu|sqrdmulh|sqrdmlah|sqrdmlsh|sqdmulh|sqdmull|sqdmull2|sqdmlal|sqdmlal2|sqdmlsl|sqdmlsl2|srshl|srshr|srsra|sshl|sshr|ssra|suqadd|uqadd|uqsub|urhadd|urshl|urshr|ursra|ushl|ushr|usra|usqadd|shadd|shsub|uhadd|uhsub|srhadd|sabd|uabd|saba|uaba|sabdl|sabdl2|uabdl|uabdl2|sabal|sabal2|uabal|uabal2|saddl|saddl2|uaddl|uaddl2|ssubl|ssubl2|usubl|usubl2|saddw|saddw2|uaddw|uaddw2|ssubw|ssubw2|usubw|usubw2|smlal|smlal2|umlal|umlal2|smlsl|smlsl2|umlsl|umlsl2|smull2|umull2|addp|faddp|fmaxp|fminp|fmaxnmp|fminnmp|addv|saddlv|uaddlv|smaxv|sminv|umaxv|uminv|smax|smin|umax|umin|cmge|cmgt|cmhi|cmhs|cmle|cmlt|cmeq|cmtst|facge|facgt|facle|faclt|fcmeq|fcmge|fcmgt|fcmle|fcmlt|and|orr|eor|bic|orn|not|xtn|xtn2|sqxtn|sqxtn2|uqxtn|uqxtn2|sqxtun|sqxtun2|fcvtl|fcvtl2|fcvtn|fcvtn2|shll|shll2|rshrn|rshrn2|sqrshrn|sqrshrn2|sqrshrun|sqrshrun2|uqrshrn|uqrshrn2|sqshrn|sqshrn2|sqshrun|sqshrun2|uqshrn|uqshrn2|shrn|shrn2|shl|sshr|ushr|sli|sri|sshll|sshll2|ushll|ushll2|ld1|ld2|ld3|ld4|ld1r|ld2r|ld3r|ld4r|st1|st2|st3|st4|aes[de]|aesimc|aesmc|sha1c|sha1h|sha1m|sha1p|sha1su0|sha1su1|sha256h|sha256h2|sha256su0|sha256su1)\\b"
+          "match": "(?i)\\b(fmaxnmv|fminnmv|fmaxv|fminv|fmaxnm|fminnm|fmax|fmin|fmadd|fmsub|fnmadd|fnmsub|fmla|fmls|fmul|fnmul|fmulx|fdiv|fadd|fsub|fneg|fabs|fsqrt|frinta|frinti|frintm|frintn|frintp|frintz|frintx|frecpe|frecps|frecpx|frsqrte|frsqrts|fcmp|fcmpe|fccmp|fccmpe|fcsel|fcvt|fcvtas|fcvtau|fcvtms|fcvtmu|fcvtns|fcvtnu|fcvtps|fcvtpu|fcvtzs|fcvtzu|scvtf|ucvtf|fjcvtzs|fmov|fdup|dmb|dup|ins|ext|rev16|rev32|rev64|tbl|tbx|zip1|zip2|uzp1|uzp2|trn1|trn2|smov|umov|movi|mvni|bsl|bit|bif|pmul|pmull|pmull2|sqadd|sqsub|sqneg|sqabs|sqshl|sqrshl|sqshlu|sqrdmulh|sqrdmlah|sqrdmlsh|sqdmulh|sqdmull|sqdmull2|sqdmlal|sqdmlal2|sqdmlsl|sqdmlsl2|srshl|srshr|srsra|sshl|sshr|ssra|suqadd|uqadd|uqsub|urhadd|urshl|urshr|ursra|ushl|ushr|usra|usqadd|shadd|shsub|uhadd|uhsub|srhadd|sabd|uabd|saba|uaba|sabdl|sabdl2|uabdl|uabdl2|sabal|sabal2|uabal|uabal2|saddl|saddl2|uaddl|uaddl2|ssubl|ssubl2|usubl|usubl2|saddw|saddw2|uaddw|uaddw2|ssubw|ssubw2|usubw|usubw2|smlal|smlal2|umlal|umlal2|smlsl|smlsl2|umlsl|umlsl2|smull2|umull2|mla|mls|addp|faddp|fmaxp|fminp|fmaxnmp|fminnmp|addv|saddlv|uaddlv|smaxv|sminv|umaxv|uminv|smax|smin|umax|umin|cmge|cmgt|cmhi|cmhs|cmle|cmlt|cmeq|cmtst|facge|facgt|facle|faclt|fcmeq|fcmge|fcmgt|fcmle|fcmlt|and|orr|eor|bic|orn|not|xtn|xtn2|sqxtn|sqxtn2|uqxtn|uqxtn2|sqxtun|sqxtun2|fcvtl|fcvtl2|fcvtn|fcvtn2|shll|shll2|rshrn|rshrn2|sqrshrn|sqrshrn2|sqrshrun|sqrshrun2|uqrshrn|uqrshrn2|sqshrn|sqshrn2|sqshrun|sqshrun2|uqshrn|uqshrn2|shrn|shrn2|shl|sshr|ushr|sli|sri|sshll|sshll2|ushll|ushll2|ld1|ld2|ld3|ld4|ld1r|ld2r|ld3r|ld4r|st1|st2|st3|st4|aes[de]|aesimc|aesmc|sha1c|sha1h|sha1m|sha1p|sha1su0|sha1su1|sha256h|sha256h2|sha256su0|sha256su1)\\b"
         }
       ]
     },
@@ -158,12 +158,12 @@
     },
 
     "macro_calls": {
-      "comment": "Heuristic: an identifier starting with '_' in instruction position (indented line) is likely a GAS macro invocation. Coloured the same as function calls (yellow).",
+      "comment": "Heuristic: an identifier starting with '_' in instruction position (indented line) is a GAS macro invocation. Different colour from function calls.",
       "patterns": [
         {
           "match": "^([ \\t]+)(_[a-zA-Z][a-zA-Z0-9_]*)",
           "captures": {
-            "2": { "name": "entity.name.function.call.arm64" }
+            "2": { "name": "entity.name.macro.call.arm64" }
           }
         }
       ]
@@ -211,7 +211,7 @@
       "patterns": [
         {
           "name": "variable.language.register.simd.arm64",
-          "match": "(?i)\\b(v([0-9]|[12][0-9]|3[01])(\\.(?:16b|8b|8h|4h|4s|2s|2d|1d|1q))?)\\b"
+          "match": "(?i)\\b(v([0-9]|[12][0-9]|3[01])(?:\\.[bhsdq]\\[[0-9]+\\]|\\.(?:16b|8b|8h|4h|4s|2s|2d|1d|1q)\\b|\\b))"
         }
       ]
     },

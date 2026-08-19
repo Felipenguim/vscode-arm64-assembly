@@ -1,22 +1,42 @@
 import * as vscode from 'vscode';
 import { REGISTER_DOCS } from '../data/registers';
 import { INSTRUCTION_DOCS } from '../data/instructions';
+import { describeArrangement, describeLane } from '../data/vectorArrangements';
 import { resolveMacro, MacroDefinition } from './macroResolver';
+import { resolveFunction, FunctionDefinition } from './functionResolver';
 
 /**
  * Provides hover documentation for AArch64 registers, instructions, macros,
  * and numeric literals.
  *
  * Priority order when the cursor is on a token:
- *   1. Register      — e.g. `x0`, `v3.8b`, `nzcv`
- *   2. Instruction   — e.g. `mov`, `bl`, `b.eq`
- *   3. Macro         — identifier matching a `.macro` definition (local or included)
- *   4. Numeric literal — e.g. `#0xFF`, `0b1010`, `#-64`
+ *   1. Vector operand  — e.g. `v1.4s`, `v0.2d`, `v3.s[0]`
+ *   2. Register        — e.g. `x0`, `v3`, `nzcv`
+ *   3. Instruction     — e.g. `mov`, `bl`, `b.eq`, `fcmp`, `movi`
+ *   4. Macro           — identifier matching a `.macro` definition (local or included)
+ *   5. Numeric literal — e.g. `#0xFF`, `0b1010`, `#-64`
  *
  * Register and instruction lookups are case-insensitive.
  * Macro name matching is case-sensitive (GAS convention).
  */
 export class Arm64HoverProvider implements vscode.HoverProvider {
+  /**
+   * Regex for vector operands carrying an arrangement (`v1.4s`) or a lane index
+   * (`v3.s[0]`).
+   *
+   * Must be tried *before* `IDENT_RE`: that one swallows the dot and yields
+   * `"v1.4s"`, which is in neither REGISTER_DOCS nor INSTRUCTION_DOCS, so the
+   * lookup used to fall all the way through to the numeric-literal hover.
+   */
+  private static readonly VEC_RE =
+    /\b[vV](?:3[01]|[12][0-9]|[0-9])\.(?:16b|8b|8h|4h|4s|2s|2d|1d|1q|[bhsdq]\[[0-9]+\])/i;
+
+  /** Splits a VEC_RE match into register number and suffix. */
+  private static readonly VEC_PARTS_RE = /^[vV]([0-9]{1,2})\.(.+)$/;
+
+  /** Matches the lane-index form of a VEC_RE suffix, e.g. `s[0]`. */
+  private static readonly LANE_RE = /^([bhsdq])\[([0-9]+)\]$/;
+
   /**
    * Regex for identifiers: captures register and instruction names, including
    * dots for vector arrangements (`v3.8b`) and conditional suffixes (`b.eq`).
@@ -40,7 +60,20 @@ export class Arm64HoverProvider implements vscode.HoverProvider {
     position: vscode.Position,
     _token: vscode.CancellationToken
   ): Promise<vscode.Hover | undefined> {
-    // ── 1. Try identifier (register / instruction / macro) ────────────────
+    // ── 1. Try vector operand (arrangement / lane index) ──────────────────
+    const vecRange = document.getWordRangeAtPosition(
+      position,
+      Arm64HoverProvider.VEC_RE
+    );
+
+    if (vecRange) {
+      const vecHover = this.buildVectorHover(document.getText(vecRange), vecRange);
+      if (vecHover) {
+        return vecHover;
+      }
+    }
+
+    // ── 2. Try identifier (register / instruction / macro) ────────────────
     const identRange = document.getWordRangeAtPosition(
       position,
       Arm64HoverProvider.IDENT_RE
@@ -66,9 +99,15 @@ export class Arm64HoverProvider implements vscode.HoverProvider {
       if (macro) {
         return this.buildMacroHover(rawWord, macro, identRange);
       }
+
+      // Function — only for names that do NOT start with `_` (those are macros)
+      const func = await resolveFunction(document, rawWord);
+      if (func) {
+        return this.buildFunctionHover(rawWord, func, identRange);
+      }
     }
 
-    // ── 2. Try numeric literal ────────────────────────────────────────────
+    // ── 3. Try numeric literal ────────────────────────────────────────────
     const numRange = document.getWordRangeAtPosition(
       position,
       Arm64HoverProvider.NUM_RE
@@ -134,6 +173,81 @@ export class Arm64HoverProvider implements vscode.HoverProvider {
     md.appendCodeblock(macro.body.join('\n'), 'arm');
 
     return new vscode.Hover(md, range);
+  }
+
+  private buildFunctionHover(
+    name: string,
+    func: FunctionDefinition,
+    range: vscode.Range
+  ): vscode.Hover {
+    const md = new vscode.MarkdownString();
+    md.isTrusted = true;
+
+    const sigLine = func.signature ?? name;
+    md.appendCodeblock(`(function) ${sigLine}`, 'c');
+
+    const descLines = func.description.filter(l => l !== '');
+    if (descLines.length) {
+      md.appendMarkdown('\n' + descLines.join('  \n') + '\n');
+    }
+
+    if (func.params.length) {
+      md.appendMarkdown('\n');
+      for (const p of func.params) {
+        md.appendMarkdown(
+          `*@param* \`${p.name}\` \`${p.register}\` \u2014 ${p.description}  \n`
+        );
+      }
+    }
+
+    if (func.ret) {
+      md.appendMarkdown('\n');
+      md.appendMarkdown(
+        `*@return* \`${func.ret.register}\` \u2014 ${func.ret.description}\n`
+      );
+    }
+
+    const hasStructuredDocs =
+      func.signature !== undefined ||
+      func.description.length > 0  ||
+      func.params.length > 0        ||
+      func.ret !== undefined;
+
+    md.appendMarkdown('\n---\n\n');
+    if (hasStructuredDocs) {
+      md.appendMarkdown('**Implementation**\n\n');
+    }
+    md.appendCodeblock(func.body.join('\n'), 'arm');
+
+    return new vscode.Hover(md, range);
+  }
+
+  /**
+   * Hover for `v1.4s` (arrangement) or `v3.s[0]` (lane index): decodes the
+   * suffix into a lane layout. Returns `undefined` for suffixes the data layer
+   * does not recognise, so the caller can fall through to the normal lookups.
+   */
+  private buildVectorHover(
+    raw: string,
+    range: vscode.Range
+  ): vscode.Hover | undefined {
+    const parts = Arm64HoverProvider.VEC_PARTS_RE.exec(raw);
+    if (!parts) { return undefined; }
+
+    const regNum = parts[1];
+    const suffix = parts[2].toLowerCase();
+
+    const lane = Arm64HoverProvider.LANE_RE.exec(suffix);
+    const description = lane
+      ? describeLane(regNum, lane[1], parseInt(lane[2], 10))
+      : describeArrangement(regNum, suffix);
+
+    if (!description) { return undefined; }
+
+    const contents = new vscode.MarkdownString();
+    contents.isTrusted = true;
+    contents.appendMarkdown(description);
+    return new vscode.Hover(contents, range);
   }
 
   private buildRegisterHover(

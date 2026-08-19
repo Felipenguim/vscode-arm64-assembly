@@ -3,8 +3,9 @@ import * as path from 'path';
 
 // ── Internal regexes ─────────────────────────────────────────────────────────
 
-const MACRO_DEF_RE = /^\s*\.macro\s+([a-zA-Z_][a-zA-Z0-9_]*)/i;
-const MACRO_END_RE = /^\s*\.endm\b/i;
+/** Top-level function label: starts with a letter (not `_` or `.`), ends with `:`. */
+const FUNC_DEF_RE  = /^\s*([a-zA-Z][a-zA-Z0-9_]*)\s*:/;
+const RET_RE       = /^\s*ret\b/i;
 const INCLUDE_RE   = /^\s*\.include\s+"([^"]+)"/i;
 
 /** Strips a leading `//` or `@` comment marker and trims the result. */
@@ -21,49 +22,44 @@ const RETURN_RE    = /^@return\s+(\S+)(?:\s*[—\-]\s*|\s+)(.*)/;
 
 // ── Public types ─────────────────────────────────────────────────────────────
 
-export interface MacroParam {
+export interface FunctionParam {
   name: string;
   register: string;
   description: string;
 }
 
-export interface MacroDefinition {
+export interface FunctionDefinition {
   uri: vscode.Uri;
-  line: number;                                          // zero-based .macro line
-  signature: string | undefined;                         // C-style signature, e.g. "int _close(int fd)"
-  description: string[];                                 // plain description lines (no @ tags)
-  params: MacroParam[];                                  // @param entries
-  ret: { register: string; description: string } | undefined; // @return entry
-  body: string[];                                        // .macro … .endm lines
+  line: number;
+  signature: string | undefined;
+  description: string[];
+  params: FunctionParam[];
+  ret: { register: string; description: string } | undefined;
+  body: string[];
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
- * Resolves a macro by name, searching first in `document` and then in any
+ * Resolves a function by name, searching first in `document` and then in any
  * files directly listed in its `.include` directives.
  *
- * Include files are searched in order:
- *   1. Relative to the document's directory (standard GAS behaviour)
- *   2. Each path listed in `arm64asm.includePaths` (mirrors the `-I` flag)
- *
- * Transitive includes are not followed (Level 2 scope).
+ * Only resolves names that do NOT start with `_` — those are macros by convention.
  */
-export async function resolveMacro(
+export async function resolveFunction(
   document: vscode.TextDocument,
   name: string
-): Promise<MacroDefinition | undefined> {
-  const local = findMacroInDocument(document, name, document.uri);
+): Promise<FunctionDefinition | undefined> {
+  if (name.startsWith('_')) { return undefined; }
+
+  const local = findFunctionInDocument(document, name, document.uri);
   if (local) { return local; }
 
-  const dir = path.dirname(document.uri.fsPath);
-
-  // Build the list of extra search dirs from configuration, resolving
-  // workspace-relative paths against the first workspace folder.
-  const config      = vscode.workspace.getConfiguration('arm64asm');
-  const extraPaths  = config.get<string[]>('includePaths') ?? [];
-  const wsRoot      = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
-  const searchDirs  = extraPaths.map(p =>
+  const dir      = path.dirname(document.uri.fsPath);
+  const config   = vscode.workspace.getConfiguration('arm64asm');
+  const extraPaths = config.get<string[]>('includePaths') ?? [];
+  const wsRoot   = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+  const searchDirs = extraPaths.map(p =>
     path.isAbsolute(p) ? p : path.resolve(wsRoot, p)
   );
 
@@ -71,7 +67,6 @@ export async function resolveMacro(
     const inc = INCLUDE_RE.exec(document.lineAt(i).text);
     if (!inc) { continue; }
 
-    // Try: document dir first, then each extra search path.
     const candidates = [
       path.resolve(dir, inc[1]),
       ...searchDirs.map(sd => path.resolve(sd, inc[1])),
@@ -81,9 +76,9 @@ export async function resolveMacro(
       try {
         const uri = vscode.Uri.file(absPath);
         const doc = await vscode.workspace.openTextDocument(uri);
-        const found = findMacroInDocument(doc, name, uri);
+        const found = findFunctionInDocument(doc, name, uri);
         if (found) { return found; }
-        break; // file opened but macro not found in it — skip remaining candidates for this include
+        break;
       } catch {
         // File not found at this path — try next candidate
       }
@@ -95,13 +90,13 @@ export async function resolveMacro(
 
 // ── Internal helpers ─────────────────────────────────────────────────────────
 
-function findMacroInDocument(
+function findFunctionInDocument(
   doc: vscode.TextDocument,
   name: string,
   uri: vscode.Uri
-): MacroDefinition | undefined {
+): FunctionDefinition | undefined {
   for (let i = 0; i < doc.lineCount; i++) {
-    const m = MACRO_DEF_RE.exec(doc.lineAt(i).text);
+    const m = FUNC_DEF_RE.exec(doc.lineAt(i).text);
     if (!m || m[1] !== name) { continue; }
 
     // Collect raw comment lines immediately above (stop at blank / non-comment)
@@ -112,11 +107,18 @@ function findMacroInDocument(
       rawComments.unshift(cm[1].trim());
     }
 
-    // Collect body from .macro to .endm (inclusive)
+    // Collect body from the label until `ret` (inclusive), the next top-level
+    // function label, or 200 lines — whichever comes first.
     const body: string[] = [doc.lineAt(i).text];
-    for (let j = i + 1; j < doc.lineCount; j++) {
-      body.push(doc.lineAt(j).text);
-      if (MACRO_END_RE.test(doc.lineAt(j).text)) { break; }
+    for (let j = i + 1; j < doc.lineCount && body.length < 200; j++) {
+      const lineText = doc.lineAt(j).text;
+
+      // Stop before the next top-level (non-local) label
+      if (FUNC_DEF_RE.test(lineText)) { break; }
+
+      body.push(lineText);
+
+      if (RET_RE.test(lineText)) { break; }
     }
 
     return { uri, line: i, body, ...parseComments(rawComments) };
@@ -124,17 +126,10 @@ function findMacroInDocument(
   return undefined;
 }
 
-/**
- * Parses raw comment lines into structured documentation fields.
- *
- * Supported tags (JSDoc-style):
- *   @param <name> <register> [—|-] <description>
- *   @return <register> [—|-] <description>
- */
 function parseComments(lines: string[]): {
   signature: string | undefined;
   description: string[];
-  params: MacroParam[];
+  params: FunctionParam[];
   ret: { register: string; description: string } | undefined;
 } {
   if (lines.length === 0) {
@@ -144,14 +139,13 @@ function parseComments(lines: string[]): {
   let idx = 0;
   let signature: string | undefined;
 
-  // First non-empty line: treat as C-style signature if it contains parens
   if (SIG_RE.test(lines[0])) {
     signature = lines[0];
     idx = 1;
   }
 
   const description: string[] = [];
-  const params: MacroParam[]  = [];
+  const params: FunctionParam[]  = [];
   let ret: { register: string; description: string } | undefined;
 
   for (; idx < lines.length; idx++) {
@@ -172,7 +166,6 @@ function parseComments(lines: string[]): {
     description.push(line);
   }
 
-  // Drop trailing empty description lines
   while (description.length && description[description.length - 1] === '') {
     description.pop();
   }
