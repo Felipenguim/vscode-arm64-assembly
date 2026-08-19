@@ -21,6 +21,8 @@ export type FindingCategory =
   | 'directives'
   /** A directive absent from our list, which may just mean our list is short. */
   | 'unknownDirective'
+  /** A data value wider than its field. GAS truncates it and warns. */
+  | 'dataTruncation'
   /** Branch or reference to a label/symbol nothing defines. */
   | 'symbols'
   /** A constant written without the canonical `#`. GAS accepts it. */

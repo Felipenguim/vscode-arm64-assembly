@@ -2,7 +2,7 @@
   "name": "vscode-arm64-assembly",
   "displayName": "ARM64 Assembly (GNU AS)",
   "description": "ARM64/AArch64 GNU Assembler support: syntax highlighting, outline, go-to-definition, and register hover docs for all AArch64 registers",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "Felipenguim",
   "license": "MIT",
   "icon": "images/icon.png",
@@ -132,9 +132,9 @@
         },
         "arm64asm.diagnostics.delay": {
           "type": "number",
-          "default": 1000,
+          "default": 300,
           "minimum": 0,
-          "markdownDescription": "Milliseconds to wait after the last keystroke before re-analysing. Opening and saving a file always analyse immediately."
+          "markdownDescription": "Milliseconds to wait after the last keystroke before re-analysing. Opening and saving a file always analyse immediately. The analysis is line-based regex work, so it stays cheap even on large files — raise this only if you find the squiggles distracting while typing."
         },
         "arm64asm.diagnostics.syntax": {
           "type": "string",
@@ -184,6 +184,18 @@
           "default": "warning",
           "markdownDescription": "A directive absent from the built-in list. Kept at `warning` because the list may be incomplete."
         },
+        "arm64asm.diagnostics.dataTruncation": {
+          "type": "string",
+          "enum": [
+            "error",
+            "warning",
+            "information",
+            "hint",
+            "off"
+          ],
+          "default": "warning",
+          "markdownDescription": "A value too wide for its data directive, e.g. `.byte 300`. Matches the assembler, which truncates the value and warns rather than failing."
+        },
         "arm64asm.diagnostics.symbols": {
           "type": "string",
           "enum": [
@@ -227,7 +239,7 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "test": "npm run compile && node --test out/test/"
+    "test": "npm run compile && node --test \"out/test/*.test.js\""
   },
   "devDependencies": {
     "@types/node": "^20.19.39",

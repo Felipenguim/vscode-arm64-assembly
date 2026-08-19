@@ -4,10 +4,13 @@
  * Pure: takes the document as `string[]`, returns `Finding[]`. No `vscode`.
  */
 
+import { FOREIGN_DIRECTIVES } from '../data/directives';
 import { isKnownMnemonic } from '../data/mnemonics';
 import { parseLines } from '../parser/lineParser';
 import type { ParsedLine } from '../parser/types';
 import { checkSyntax } from './rules/syntax';
+import { checkDirectives } from './rules/directives';
+import { checkOperands } from './rules/operands';
 import { checkSymbols, checkUnknownMnemonic } from './rules/symbols';
 import type { SymbolIndex } from './symbolIndex';
 import type { Finding, FindingCategory } from './findings';
@@ -38,13 +41,17 @@ export function analyze(lines: string[], context: AnalysisContext = {}): Finding
 /** Exposed so tests can run the rule set against an already-parsed line. */
 export function runRules(line: ParsedLine, context: AnalysisContext): Finding[] {
   const out: Finding[] = [...checkSyntax(line)];
+  out.push(...checkDirectives(line, context.symbols));
+  out.push(...checkOperands(line));
 
   if (context.symbols) {
     out.push(...checkSymbols(line, context.symbols));
 
     // A mnemonic we do not recognise is only worth reporting once we can rule
-    // out that it is a macro — which needs the index.
+    // out that it is a macro — which needs the index. A directive that turned
+    // out to be foreign (`dq`) is already covered by the directive rules.
     if (line.mnemonic && !line.isDirective && !isKnownMnemonic(line.mnemonic.text)
+        && !FOREIGN_DIRECTIVES.has(line.mnemonic.text)
         && !line.mnemonic.raw.includes(String.fromCharCode(92))) {
       out.push(...checkUnknownMnemonic(line, context.symbols));
     }

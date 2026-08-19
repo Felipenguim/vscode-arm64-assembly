@@ -24,8 +24,8 @@ export const KNOWN_DIRECTIVES: ReadonlySet<string> = new Set([
   'skip', 'space', 'zero', 'org', 'fill',
   // Data emission
   'byte', 'hword', 'short', '2byte', 'word', 'long', 'int', '4byte',
-  'quad', 'xword', 'dword', '8byte', 'octa', 'tbyte',
-  'float', 'single', 'double', 'uleb128', 'sleb128', 'inst', 'inst.n', 'inst.w',
+  'quad', 'xword', 'dword', '8byte', 'octa',
+  'float', 'single', 'double', 'uleb128', 'sleb128', 'inst',
   'ascii', 'asciz', 'string', 'string8', 'string16', 'string32', 'string64', 'incbin',
   // Storage allocation
   'comm', 'lcomm',
@@ -46,7 +46,7 @@ export const KNOWN_DIRECTIVES: ReadonlySet<string> = new Set([
   'func', 'endfunc',
   // Target selection
   'arch', 'arch_extension', 'cpu', 'fpu', 'code', 'thumb', 'arm', 'syntax',
-  'ltorg', 'pool', 'req', 'unreq', 'tlsdesccall', 'dcps1', 'dcps2', 'dcps3',
+  'ltorg', 'pool', 'req', 'unreq', 'tlsdesccall',
   // Call-frame information
   'cfi_startproc', 'cfi_endproc', 'cfi_sections', 'cfi_def_cfa', 'cfi_def_cfa_offset',
   'cfi_def_cfa_register', 'cfi_offset', 'cfi_rel_offset', 'cfi_adjust_cfa_offset',
@@ -66,49 +66,52 @@ export const KNOWN_DIRECTIVES: ReadonlySet<string> = new Set([
  * "unknown mnemonic `dq'", and the fix is unambiguous.
  */
 export interface ForeignDirective {
-  /** What to write instead. Used verbatim as the quick-fix replacement. */
+  /** What to write instead. */
   gas: string;
-  /** Extra context for the message, when the swap is not one-for-one. */
+  /**
+   * True when swapping the name alone produces correct code, so a quick-fix is
+   * safe to offer. `resw N` is *not* mechanical: `.skip N` would silently
+   * reserve half the bytes.
+   */
+  mechanical: boolean;
+  /** Extra context for the message, when the swap needs more than a rename. */
   note?: string;
 }
 
 export const FOREIGN_DIRECTIVES: ReadonlyMap<string, ForeignDirective> = new Map([
   // NASM data definition
-  ['db',        { gas: '.byte' }],
-  ['dw',        { gas: '.hword' }],
-  ['dd',        { gas: '.word' }],
-  ['dq',        { gas: '.quad' }],
-  ['dt',        { gas: '.tbyte' }],
-  ['do',        { gas: '.octa' }],
+  ['db',        { gas: '.byte',  mechanical: true }],
+  ['dw',        { gas: '.hword', mechanical: true }],
+  ['dd',        { gas: '.word',  mechanical: true }],
+  ['dq',        { gas: '.quad',  mechanical: true }],
+  ['dt',        { gas: '.octa', mechanical: false, note: 'the x87 80-bit format does not exist on AArch64' }],
   // NASM reserved space
-  ['resb',      { gas: '.skip', note: 'em GAS o tamanho vai como argumento: `.skip N`' }],
-  ['resw',      { gas: '.skip', note: 'reserve 2×N bytes: `.skip N*2`' }],
-  ['resd',      { gas: '.skip', note: 'reserve 4×N bytes: `.skip N*4`' }],
-  ['resq',      { gas: '.skip', note: 'reserve 8×N bytes: `.skip N*8`' }],
+  ['resb',      { gas: '.skip', mechanical: true }],
+  ['resw',      { gas: '.skip', mechanical: false, note: 'reserve 2×N bytes: `.skip N*2`' }],
+  ['resd',      { gas: '.skip', mechanical: false, note: 'reserve 4×N bytes: `.skip N*4`' }],
+  ['resq',      { gas: '.skip', mechanical: false, note: 'reserve 8×N bytes: `.skip N*8`' }],
   // NASM preprocessor
-  ['%macro',    { gas: '.macro' }],
-  ['%endmacro', { gas: '.endm' }],
-  ['%define',   { gas: '.equ', note: 'GAS usa `.equ NOME, valor`' }],
-  ['%include',  { gas: '.include' }],
-  ['%if',       { gas: '.if' }],
-  ['%endif',    { gas: '.endif' }],
-  ['%ifdef',    { gas: '.ifdef' }],
-  ['times',     { gas: '.rept', note: 'GAS repete com `.rept N` … `.endr`' }],
+  ['%macro',    { gas: '.macro', mechanical: false, note: 'and close it with `.endm` instead of `%endmacro`' }],
+  ['%endmacro', { gas: '.endm',   mechanical: true }],
+  ['%define',   { gas: '.equ',    mechanical: false, note: 'GAS spells it `.equ NAME, value`' }],
+  ['%include',  { gas: '.include', mechanical: true }],
+  ['%if',       { gas: '.if',     mechanical: true }],
+  ['%endif',    { gas: '.endif',  mechanical: true }],
+  ['%ifdef',    { gas: '.ifdef',  mechanical: true }],
+  ['times',     { gas: '.rept',   mechanical: false, note: 'GAS repeats with `.rept N` … `.endr`' }],
   // Missing dot — the most common slip when coming from NASM
-  ['section',   { gas: '.section' }],
-  ['global',    { gas: '.global' }],
-  ['extern',    { gas: '.extern' }],
-  ['equ',       { gas: '.equ', note: 'GAS usa `.equ NOME, valor`' }],
-  ['org',       { gas: '.org' }],
-  ['align',     { gas: '.align' }],
-  ['bits',      { gas: '.arch', note: 'AArch64 não tem equivalente a `bits 64`' }],
+  ['section',   { gas: '.section', mechanical: true }],
+  ['global',    { gas: '.global',  mechanical: true }],
+  ['extern',    { gas: '.extern',  mechanical: true }],
+  ['org',       { gas: '.org',     mechanical: true }],
+  ['align',     { gas: '.align',   mechanical: true }],
+  ['equ',       { gas: '.equ',     mechanical: false, note: 'GAS spells it `.equ NAME, value`' }],
+  ['bits',      { gas: '.arch',    mechanical: false, note: 'AArch64 has no equivalent of `bits 64`' }],
   // MASM
-  ['proc',      { gas: '.type', note: 'GAS marca funções com `.type nome, %function`' }],
-  ['endp',      { gas: '.size', note: 'GAS fecha funções com `.size nome, . - nome`' }],
-  ['ptr',       { gas: '', note: 'GAS não usa `PTR`; o tamanho vem do registrador (`x`/`w`)' }],
-  ['byte',      { gas: '.byte' }],
-  ['qword',     { gas: '.quad',  note: 'GAS não usa `QWORD PTR`; o tamanho vem do registrador' }],
-  ['dword',     { gas: '.word',  note: 'GAS não usa `DWORD PTR`; o tamanho vem do registrador' }],
+  ['proc',      { gas: '.type', mechanical: false, note: 'GAS marks functions with `.type name, %function`' }],
+  ['endp',      { gas: '.size', mechanical: false, note: 'GAS closes functions with `.size name, . - name`' }],
+  ['qword',     { gas: '.quad', mechanical: false, note: 'GAS has no `QWORD PTR`; the width comes from the register (`x` vs `w`)' }],
+  ['dword',     { gas: '.word', mechanical: false, note: 'GAS has no `DWORD PTR`; the width comes from the register (`x` vs `w`)' }],
 ]);
 
 /** A directive that emits data, and what kind of value it accepts. */

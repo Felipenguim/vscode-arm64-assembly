@@ -100,9 +100,9 @@ function report(
     'arm64/unknown-symbol',
     'symbols',
     suggestion
-      ? `\`${name}\` não está definido neste arquivo nem nos \`.include\`. Você quis dizer \`${suggestion}\`?`
-      : `Label local \`${name}\` não está definido neste arquivo nem nos \`.include\`.`,
-    suggestion ? { title: `Trocar por ${suggestion}`, span: where, newText: suggestion } : undefined
+      ? `\`${name}\` is not defined in this file or its \`.include\`s. Did you mean \`${suggestion}\`?`
+      : `Local label \`${name}\` is not defined in this file or its \`.include\`s.`,
+    suggestion ? { title: `Change to ${suggestion}`, span: where, newText: suggestion } : undefined
   ));
 }
 
@@ -137,8 +137,8 @@ export function checkUnknownMnemonic(line: ParsedLine, index: SymbolIndex): Find
     'arm64/unknown-mnemonic',
     'symbols',
     suggestion
-      ? `\`${name}\` não é uma instrução AArch64 nem uma macro definida. Você quis dizer \`${suggestion}\`?`
-      : `\`${name}\` não é uma instrução AArch64 nem uma macro definida neste arquivo ou nos \`.include\`.`,
-    suggestion ? { title: `Trocar por ${suggestion}`, span: line.mnemonic.span, newText: suggestion } : undefined
+      ? `\`${name}\` is not an AArch64 instruction or a defined macro. Did you mean \`${suggestion}\`?`
+      : `\`${name}\` is not an AArch64 instruction, nor a macro defined in this file or its \`.include\`s.`,
+    suggestion ? { title: `Change to ${suggestion}`, span: line.mnemonic.span, newText: suggestion } : undefined
   )];
 }

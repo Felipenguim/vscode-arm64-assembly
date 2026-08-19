@@ -17,7 +17,8 @@ import { classifyOperand } from './operandKind';
 import type { Operand, ParsedLine, Span, Token } from './types';
 
 const LABEL_RE  = /^[ \t]*(\.?[A-Za-z_$][A-Za-z0-9_.$]*|[0-9]+)[ \t]*:/;
-const MNEM_RE   = /^[ \t]*(\.?[A-Za-z_][A-Za-z0-9_.]*)/;
+/** Leading `%` is accepted so NASM's `%macro` reaches the directive rules. */
+const MNEM_RE   = /^[ \t]*([%.]?[A-Za-z_][A-Za-z0-9_.]*)/;
 const MACRO_RE  = /^[ \t]*\.macro\b/i;
 const ENDM_RE   = /^[ \t]*\.endm\b/i;
 

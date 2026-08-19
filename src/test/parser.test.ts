@@ -271,3 +271,147 @@ test('symbol assignment is not read as an instruction', () => {
   assert.equal(l.isAssignment, true);
   assert.deepEqual(symbolCodes('msg: .asciz "x"\nlen= . -msg'), []);
 });
+
+// ── Directives ────────────────────────────────────────────────────────────────
+
+test('a directive from another assembler is reported with its GAS name', () => {
+  const found = findings('.data\nvalue: dq 5').filter(f => f.code === 'arm64/foreign-directive');
+  assert.equal(found.length, 1);
+  assert.match(found[0].message, /\.quad/);
+  assert.equal(found[0].fix?.newText, '.quad');
+});
+
+test('resw is reported but not auto-fixed, since .skip would halve the size', () => {
+  const found = findings('.bss\nb: resw 8').filter(f => f.code === 'arm64/foreign-directive');
+  assert.equal(found.length, 1);
+  assert.equal(found[0].fix, undefined);
+});
+
+test('an unknown directive suggests the closest real one', () => {
+  // `.elif` does not exist in GAS; `.elseif` does.
+  const found = findings('.if 1\n.elif 2\n.endif').filter(f => f.code === 'arm64/unknown-directive');
+  assert.equal(found.length, 1);
+  assert.equal(found[0].fix?.newText, '.elseif');
+});
+
+test('a float in an integer directive is an error with the right replacement', () => {
+  const q = findings('.data\n.quad 1.56').filter(f => f.code === 'arm64/directive-float-in-int');
+  assert.equal(q.length, 1);
+  assert.equal(q[0].fix?.newText, '.double');
+
+  const w = findings('.data\n.word 3.14').filter(f => f.code === 'arm64/directive-float-in-int');
+  assert.equal(w[0].fix?.newText, '.float');
+});
+
+test('an integer in a float directive is fine', () => {
+  assert.deepEqual(symbolCodes('.data\n.double 5\n.float 2'), []);
+});
+
+test('a value too wide for its field reports the truncation', () => {
+  const found = findings('.data\n.byte 300').filter(f => f.code === 'arm64/data-truncated');
+  assert.equal(found.length, 1);
+  assert.match(found[0].message, /0x2C/);
+  // GAS accepts `.byte -200` silently, so we must too.
+  assert.deepEqual(symbolCodes('.data\n.byte -200\n.byte 0x7f\n.hword 65535'), []);
+});
+
+test('string directives require quotes', () => {
+  const found = findings('.data\n.ascii hello').filter(f => f.code === 'arm64/directive-needs-string');
+  assert.equal(found.length, 1);
+  assert.equal(found[0].fix?.newText, '"hello"');
+});
+
+test('data directives accept symbols and expressions untouched', () => {
+  const src = 'msg: .asciz "x"\nmsg_end:\n.word msg_end - msg\n.quad msg';
+  assert.deepEqual(symbolCodes(src), []);
+});
+
+test('%macro reaches the directive rules', () => {
+  const found = findings('%macro foo 1').filter(f => f.code === 'arm64/foreign-directive');
+  assert.equal(found.length, 1);
+  assert.match(found[0].message, /\.macro/);
+});
+
+// ── Operand forms ─────────────────────────────────────────────────────────────
+
+function operandCodes(source: string): string[] {
+  return analyze(source.split('\n')).map(f => f.code);
+}
+
+test('MOV does not reach memory', () => {
+  const found = analyze(['mov x3, [x4]']);
+  assert.equal(found.length, 1);
+  assert.equal(found[0].code, 'arm64/invalid-operand');
+  assert.match(found[0].message, /does not reach memory/);
+});
+
+test('=symbol belongs to LDR, not MOV', () => {
+  assert.match(analyze(['mov x0, =msg'])[0].message, /LDR/);
+});
+
+test('STR needs an address', () => {
+  assert.deepEqual(operandCodes('str x0, x1'), ['arm64/invalid-operand']);
+});
+
+test('mixed register widths', () => {
+  assert.deepEqual(operandCodes('add x0, w1, x2'), ['arm64/register-width-mismatch']);
+  assert.deepEqual(operandCodes('cmp x0, w1'), ['arm64/register-width-mismatch']);
+});
+
+test('the extended-register form takes a W source beside an X destination', () => {
+  // `add x0, x1, w2, uxtw #2` assembles: the extend operator sets the width.
+  assert.deepEqual(operandCodes('add x0, x1, w2, uxtw #2'), []);
+  assert.deepEqual(operandCodes('add x3, sp, x3'), []);
+});
+
+test('too few operands is reported as a count, not a bad operand', () => {
+  const found = analyze(['add x0, x1']);
+  assert.equal(found[0].code, 'arm64/operand-count');
+  assert.match(found[0].message, /it expects 3/);
+});
+
+test('mismatched vector arrangements', () => {
+  const found = analyze(['fadd v0.4s, v1.2d, v2.4s']);
+  assert.equal(found[0].code, 'arm64/vector-arrangement-mismatch');
+  assert.equal(found[0].category, 'vectors');
+});
+
+test('lane index out of range', () => {
+  const found = analyze(['ins v10.s[9], w0']);
+  assert.equal(found[0].code, 'arm64/lane-out-of-range');
+  assert.match(found[0].message, /0 to 3/);
+  assert.deepEqual(operandCodes('ins v10.s[3], w0'), []);
+  assert.deepEqual(operandCodes('umov w0, v5.b[15]'), []);
+});
+
+test('an assemble-time constant is a valid immediate', () => {
+  // `.equ SYS_READ, 63` then `mov w8, SYS_READ` is ordinary code.
+  assert.deepEqual(operandCodes('mov w8, SYS_READ'), []);
+  assert.deepEqual(operandCodes('add x1, x1, LOAD_ADDRESS'), []);
+});
+
+test('FCVT converts between sizes, so its operands differ on purpose', () => {
+  assert.deepEqual(operandCodes('fcvt s0, d1'), []);
+  assert.deepEqual(operandCodes('scvtf d0, x1'), []);
+});
+
+test('by-element SIMD forms', () => {
+  assert.deepEqual(operandCodes('fmul v12.4s, v11.4s, v10.s[1]'), []);
+  assert.deepEqual(operandCodes('fmla v0.4s, v1.4s, v2.s[0]'), []);
+});
+
+test('post-index and pre-index addressing', () => {
+  assert.deepEqual(operandCodes('ldr x0, [x1], #8'), []);
+  assert.deepEqual(operandCodes('stp x29, x30, [sp, #-16]!'), []);
+  assert.deepEqual(operandCodes('ldp x29, x30, [sp], #16'), []);
+});
+
+test('a mnemonic with no signature is never reported', () => {
+  // `sha256su0` is a known mnemonic with no entry in the table.
+  assert.deepEqual(operandCodes('sha256su0 v0.4s, v1.4s'), []);
+});
+
+test('macro parameters disable operand checking on the line', () => {
+  const src = ['.macro m a, b', '  add ' + BS + 'a', '.endm'].join('\n');
+  assert.deepEqual(codes(src), []);
+});

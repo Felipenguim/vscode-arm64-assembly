@@ -16,7 +16,7 @@ import { openAllIncluded } from '../providers/includeResolver';
 import type { Finding, FindingCategory } from './findings';
 
 const LANGUAGE_ID = 'arm64-asm';
-const DEFAULT_DELAY = 1000;
+const DEFAULT_DELAY = 300;
 
 /** Falls back to these when a setting is missing or misspelled. */
 const DEFAULT_SEVERITY: Record<FindingCategory, string> = {
@@ -24,6 +24,7 @@ const DEFAULT_SEVERITY: Record<FindingCategory, string> = {
   operands: 'error',
   directives: 'error',
   unknownDirective: 'warning',
+  dataTruncation: 'warning',
   symbols: 'warning',
   immediateHash: 'warning',
   vectors: 'error',
@@ -41,7 +42,8 @@ export class Arm64DiagnosticManager implements vscode.Disposable {
 
     this.status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 90);
     this.status.command = 'workbench.actions.view.problems';
-    this.status.tooltip = 'ARM64: problemas neste arquivo — clique para abrir o painel (F8 pula para o próximo)';
+    this.status.tooltip =
+      'ARM64: problems in this file — click to open the Problems panel (F8 jumps to the next one)';
 
     this.disposables.push(
       this.collection,

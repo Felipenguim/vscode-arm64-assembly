@@ -75,9 +75,21 @@ Legend: ✅ done · 🚧 in progress · ⬜ not started
   inlay hints, or diagnostics
 - ⬜ **FP/SIMD register tracking** — extend the tracker to `v`/`q`/`d`/`s` registers and
   their arrangements
-- ⬜ **Regex-based diagnostics** — detect common error patterns without invoking the assembler
-  (e.g. wrong register width for a mnemonic, mismatched vector arrangements between operands,
-  immediates outside the encodable range, `sp` left unaligned)
+- ✅ **Regex-based diagnostics** — problems are reported as you type, without invoking the
+  assembler (`src/diagnostics/`, built on the new column-preserving tokenizer in `src/parser/`).
+  Live today: syntax (missing/stray comma, unbalanced bracket, unterminated string), directives
+  (`dq`/`resb`/`%macro`, `.quad 1.56`, `.byte 300`, unknown directive), symbols (a branch or
+  `ldr =sym` to a name nothing defines, with a did-you-mean), and the optional `#`-prefix style
+  rule. Each family has its own severity setting, and every finding with an unambiguous repair
+  ships a quick-fix. Severities were verified against `aarch64-linux-gnu-as` rather than assumed.
+  Operand forms are validated against `src/data/instructionSignatures.ts` (~300 mnemonics,
+  compiled by `src/parser/formSpec.ts`), which catches `mov x3, [x4]`, `str x0, x1`,
+  `add x0, w1, x2`, a wrong operand count, `v10.s[9]` out of range and
+  `fadd v0.4s, v1.2d, v2.4s`. A mnemonic with no entry produces no operand diagnostic, so the
+  table grows without ever introducing a false positive
+- ⬜ **Immediate range checking** — an immediate outside what the encoding can hold
+  (`add` accepts a 12-bit unsigned value, optionally shifted by 12; `movz` a 16-bit one), and
+  `ldr`/`str` offsets that are not correctly scaled for the access width
 - ⬜ **Assembler integration** — run `as`/`clang` on save and surface real diagnostics
 
 ---

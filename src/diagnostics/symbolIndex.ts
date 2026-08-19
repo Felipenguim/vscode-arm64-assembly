@@ -109,20 +109,50 @@ function stripComment(line: string): string {
 export function suggestSymbol(name: string, defined: ReadonlySet<string>): string | undefined {
   const budget = name.length <= 4 ? 1 : 2;
   let best: string | undefined;
-  let bestDistance = budget + 1;
+  let bestRank: [number, number, number] = [budget + 1, -1, -1];
 
   for (const candidate of defined) {
     if (candidate === name) { return undefined; }
     if (Math.abs(candidate.length - name.length) > budget) { continue; }
 
     const d = distance(name, candidate, budget);
-    if (d < bestDistance) {
-      bestDistance = d;
+    if (d > budget) { continue; }
+
+    // Ties are common — `.elif` is two edits from both `.else` and `.elseif`.
+    // Break them on two signals, in order: whether the written name is an
+    // abbreviation of the candidate (`.elif` ⊂ `.elseif`, but not ⊂ `.else`),
+    // then on how much of the prefix they share.
+    const rank: [number, number, number] = [
+      d,
+      isSubsequence(name, candidate) ? 1 : 0,
+      commonPrefix(name, candidate),
+    ];
+
+    if (rank[0] < bestRank[0]
+      || (rank[0] === bestRank[0] && rank[1] > bestRank[1])
+      || (rank[0] === bestRank[0] && rank[1] === bestRank[1] && rank[2] > bestRank[2])) {
+      bestRank = rank;
       best = candidate;
     }
   }
 
-  return bestDistance <= budget ? best : undefined;
+  return best;
+}
+
+function commonPrefix(a: string, b: string): number {
+  const max = Math.min(a.length, b.length);
+  let i = 0;
+  while (i < max && a[i] === b[i]) { i++; }
+  return i;
+}
+
+/** True when every character of `a` appears in `b`, in order. */
+function isSubsequence(a: string, b: string): boolean {
+  let i = 0;
+  for (let j = 0; j < b.length && i < a.length; j++) {
+    if (a[i] === b[j]) { i++; }
+  }
+  return i === a.length;
 }
 
 /** Levenshtein distance, giving up as soon as it exceeds `budget`. */

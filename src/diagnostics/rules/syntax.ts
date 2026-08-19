@@ -22,8 +22,8 @@ export function checkSyntax(line: ParsedLine): Finding[] {
       line.strayCommaAfterMnemonic,
       'arm64/stray-comma',
       'syntax',
-      'Vírgula sobrando logo após o mnemônico — os operandos vêm separados apenas por espaço do mnemônico.',
-      { title: 'Remover a vírgula', newText: '' }
+      'Stray comma after the mnemonic — only whitespace separates a mnemonic from its first operand.',
+      { title: 'Remove the comma', newText: '' }
     ));
   }
 
@@ -40,8 +40,8 @@ export function checkSyntax(line: ParsedLine): Finding[] {
         span,
         'arm64/missing-comma',
         'syntax',
-        'Falta uma vírgula entre os operandos.',
-        { title: 'Inserir vírgula', span: { start: span.start, end: span.start }, newText: ',' }
+        'Missing comma between operands.',
+        { title: 'Insert comma', span: { start: span.start, end: span.start }, newText: ',' }
       ));
     }
 
@@ -52,7 +52,7 @@ export function checkSyntax(line: ParsedLine): Finding[] {
         span,
         'arm64/empty-operand',
         'syntax',
-        'Operando vazio: há uma vírgula sem operando antes ou depois dela.'
+        'Empty operand: a comma with nothing on one side of it.'
       ));
     }
   }
@@ -64,11 +64,11 @@ export function checkSyntax(line: ParsedLine): Finding[] {
       ? finding(
           line.lineNumber, line.unbalanced.span,
           'arm64/unterminated-string', 'syntax',
-          'String sem aspas de fechamento.')
+          'Unterminated string — no closing quote.')
       : finding(
           line.lineNumber, line.unbalanced.span,
           'arm64/unbalanced-bracket', 'syntax',
-          `Delimitador \`${c}\` sem par correspondente.`));
+          `Unbalanced \`${c}\` — no matching delimiter.`));
   }
 
   // ── Immediate written without `#` ──────────────────────────────────────────
@@ -82,8 +82,8 @@ export function checkSyntax(line: ParsedLine): Finding[] {
         op.span,
         'arm64/missing-hash',
         'immediateHash',
-        `Imediato \`${op.text}\` sem \`#\`. O GNU as aceita, mas a forma canônica em AArch64 é \`#${op.text}\`.`,
-        { title: `Escrever como #${op.text}`, span: { start: op.span.start, end: op.span.start }, newText: '#' }
+        `Immediate \`${op.text}\` written without \`#\`. The GNU assembler accepts this, but \`#${op.text}\` is the canonical AArch64 form.`,
+        { title: `Write as #${op.text}`, span: { start: op.span.start, end: op.span.start }, newText: '#' }
       ));
     }
   }

@@ -121,6 +121,84 @@ fcvtzs w0, s0     // hover → rounding mode, saturation, inverse (SCVTF)
 Mnemonics that exist in both worlds (`add`, `orr`, `ldr`, `mov`, …) show the
 scalar documentation followed by the vector form.
 
+### Diagnostics
+
+Mistakes are underlined as you type, after a 300 ms pause. The analysis is
+line-based regex work, so it stays cheap even on large files. Everything lands
+in the Problems panel, so **F8** / **Shift+F8** step through them,
+**Ctrl+Shift+M** opens the list, and **Ctrl+.** offers a fix. A status-bar
+counter shows the active file's totals and opens the panel on click.
+
+```asm
+add   sp, sp #16      // Error: missing comma between operands
+add,  sp, sp, #16     // Error: stray comma after the mnemonic
+b     ret_x           // Warning: not defined here — did you mean `.ret_x`?
+dq    5               // Error: `dq` does not exist in GNU as — the equivalent is `.quad`
+.quad 1.56            // Error: `.quad` only takes integers — use `.double`
+.byte 300             // Warning: does not fit in 1 byte — truncated to 0x2C
+.elif x == 15         // Warning: unknown directive — did you mean `.elseif`?
+mov   x3, [x4]        // Error: MOV does not reach memory — use LDR
+str   x0, x1          // Error: STR needs a bracketed address
+add   x0, w1, x2      // Error: mixed register widths — all x or all w
+fadd  v0.4s, v1.2d, v2.4s   // Error: mismatched vector arrangement
+ins   v10.s[9], w0    // Error: `.s` has 4 lanes, so the index runs 0 to 3
+```
+
+Severities are not guesswork: each rule was checked against
+`aarch64-linux-gnu-as` (binutils 2.38), and reports the severity the assembler
+itself uses. That is why `.byte 300` is a warning (GAS truncates and carries on)
+while `.quad 1.56` is an error (GAS refuses the line).
+
+Every family can be re-levelled or switched off independently — each accepts
+`error`, `warning`, `information`, `hint` or `off`:
+
+| Setting | Default | Reports |
+|---|---|---|
+| `arm64asm.diagnostics.syntax` | `error` | missing comma, stray comma, unbalanced bracket, unterminated string, empty operand |
+| `arm64asm.diagnostics.directives` | `error` | `dq`/`dd`/`resb`/`%macro`, `.quad 1.56`, `.ascii` without quotes |
+| `arm64asm.diagnostics.unknownDirective` | `warning` | a directive not in the built-in list |
+| `arm64asm.diagnostics.dataTruncation` | `warning` | a value wider than its data directive |
+| `arm64asm.diagnostics.operands` | `error` | an operand shape no encoding of the instruction accepts |
+| `arm64asm.diagnostics.vectors` | `error` | lane index out of range, mismatched vector arrangements |
+| `arm64asm.diagnostics.symbols` | `warning` | a label, macro or `.equ` name nothing defines |
+| `arm64asm.diagnostics.immediateHash` | `warning` | a constant written without `#` |
+
+Two more knobs: `arm64asm.diagnostics.enable` turns the whole thing off, and
+`arm64asm.diagnostics.delay` changes the 300 ms debounce.
+
+**A note on the `#`.** In AArch64 the `#` before an immediate is *optional* —
+`add sp, sp, 16` assembles cleanly. So that rule is about consistency, not
+correctness, and it is the one most likely to be noise in an existing codebase.
+Turn it off with:
+
+```jsonc
+"arm64asm.diagnostics.immediateHash": "off"
+```
+
+**Suppressing a single line.** When a rule is wrong about your code, say so
+inline rather than switching the family off:
+
+```asm
+        add     sp, sp, 16      // arm64asm-ignore-line
+        b       external_thing  // arm64asm-ignore: symbols
+```
+
+**Operand checking is opt-in per instruction.** Forms are validated against a
+table of roughly 300 mnemonics. A mnemonic missing from that table is simply not
+checked — the table is allowed to be incomplete, but never wrong. The same
+caution runs through the rest: of the 105 real assembly files used to develop
+this, the 55 that `aarch64-linux-gnu-as` accepts with no message produce no
+errors here either.
+
+**Scope.** Symbols are resolved in the current file plus one level of
+`.include` (using `arm64asm.includePaths`, GAS's `-I`). Because a `bl` to a
+function in a separately-assembled file is perfectly normal, unresolved names
+are only reported when they are a near miss against a name that *does* exist, or
+when they are local labels — which cannot come from the linker.
+
+`examples/lint_errors.s` and `examples/lint_clean.s` show every rule firing and
+every trap it must not fall into.
+
 ### Go-to-Definition
 
 Press **F12** or **Ctrl+Click** on any label or macro reference to jump to its

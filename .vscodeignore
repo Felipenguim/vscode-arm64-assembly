@@ -1,10 +1,14 @@
 .vscode/**
 src/**
+out/test/**
+out/**/*.map
+out/*.map
 .gitignore
 tsconfig.json
 node_modules/**
-*.map
 **/*.ts
-!out/**
 PLAN.md
 .claude/**
+*.vsix
+CONTRIBUTING.md
+ROADMAP.md
